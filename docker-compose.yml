@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: comfyweb-app
+    restart: unless-stopped
+    working_dir: /var/www
+    volumes:
+      - ./:/var/www
+      - ./storage/app/public:/var/www/storage/app/public
+    ports:
+      - "8080:80"
+    environment:
+      - APP_ENV=production
+      - APP_DEBUG=false
+      - DB_CONNECTION=mysql
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_DATABASE=comfyweb
+      - DB_USERNAME=comfyweb
+      - DB_PASSWORD=comfyweb_password
+      - COMFYUI_URL=http://comfyui:8188
+      - QUEUE_CONNECTION=database
+    depends_on:
+      - db
+      - comfyui
+    networks:
+      - comfyweb-network
+
+  db:
+    image: mysql:8.0
+    container_name: comfyweb-db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: comfyweb
+      MYSQL_USER: comfyweb
+      MYSQL_PASSWORD: comfyweb_password
+      MYSQL_ROOT_PASSWORD: root_password
+    volumes:
+      - db_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    networks:
+      - comfyweb-network
+
+  comfyui:
+    image: yanwk/comfyui-boot:latest
+    container_name: comfyweb-comfyui
+    restart: unless-stopped
+    environment:
+      - CLI_ARGS=--listen 0.0.0.0 --port 8188
+    volumes:
+      - comfyui_data:/root
+      - ./storage/comfyui/models:/root/ComfyUI/models
+      - ./storage/comfyui/output:/root/ComfyUI/output
+    ports:
+      - "8188:8188"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - comfyweb-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: comfyweb-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - comfyweb-network
+
+volumes:
+  db_data:
+  comfyui_data:
+
+networks:
+  comfyweb-network:
+    driver: bridge
